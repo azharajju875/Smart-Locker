@@ -1,0 +1,127 @@
+#define BLYNK_TEMPLATE_ID "TMPL3Ar38jGkr"
+#define BLYNK_TEMPLATE_NAME "lock"
+#define BLYNK_AUTH_TOKEN "rgLR3zr6wzaMHqStgkAtiBmJkDQU9t39"
+
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+#include <Keypad.h>
+#include <ESP32Servo.h>
+
+String Password;
+const byte ROWS = 4;
+const byte COLS = 4;
+char keys[ROWS][COLS] = {
+  {'1','2','3','A'},
+  {'4','5','6','B'},
+  {'7','8','9','C'},
+  {'*','0','#','D'}
+};
+byte rowPins[ROWS] = {19, 18, 5, 17}; // Adjust as needed
+byte colPins[COLS] = {16, 4, 2, 15};  // Adjust as needed
+
+Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Address 0x27 is common for I2C LCD
+Servo myServo;
+
+String currentPassword;
+String enteredPassword;
+
+const char* ssid = "GalaxyS23";
+const char* password = "12345678";
+
+// Replace with your Blynk Auth Token
+char auth[] = "rgLR3zr6wzaMHqStgkAtiBmJkDQU9t39";
+
+void setup() {
+  lcd.begin();
+  lcd.backlight();
+  myServo.attach(13); // Attach the servo to pin 13
+  myServo.write(0);
+  Serial.begin(115200);
+  
+  generateNewPassword(); // Set initial password
+  Serial.print("Current Password: ");
+Serial.println(Password);
+
+  lcd.setCursor(0, 0);
+  lcd.print("Enter Password:");
+
+  
+
+  // Connect to Wi-Fi
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("Connected to WiFi");
+
+  // Initialize Blynk
+  Blynk.begin(auth, ssid, password);
+}
+
+void loop() {
+   Blynk.run();
+  char key = keypad.getKey();
+  if (key) {
+    lcd.setCursor(0, 1);
+    lcd.print("                "); // Clear previous input
+    lcd.setCursor(0, 1);
+    enteredPassword += key;
+    lcd.print(enteredPassword);
+    
+
+    if (key == '*') { // Press '#' to submit the password
+    Serial.println(password);
+    Serial.println(enteredPassword);
+    
+      if (enteredPassword == Password) {
+        lcd.setCursor(0, 1);
+        lcd.print("unlocked");
+        myServo.write(90); // Unlock position
+        delay(5000); // Keep unlocked for 5 seconds
+        myServo.write(0); // Lock position
+      } else {
+        lcd.setCursor(0, 1);
+        lcd.print("wrong password");
+        delay(2000); // Show wrong password message for 2 seconds
+      }
+      enteredPassword = ""; // Clear the entered password
+      lcd.setCursor(0, 0);
+      lcd.print("Enter Password:");
+    }
+    
+  }
+
+  // Automatically change the password every minute
+  static unsigned long lastChange = millis();
+  if (millis() - lastChange > 60000) { // 60 seconds
+    generateNewPassword();
+
+    Serial.print("New Password: ");
+  
+    Serial.println(currentPassword);
+     Blynk.virtualWrite(V1,currentPassword);
+     Blynk.logEvent("password",currentPassword);
+    
+    lastChange = millis();
+
+  }
+
+ 
+  }
+
+ 
+
+
+void generateNewPassword() {
+  currentPassword = "";
+  for (int i = 0; i < 4; i++) {
+    currentPassword += random(0, 10); // Generate a 4-digit password
+    Password=currentPassword+"*";
+  
+  }
+}
